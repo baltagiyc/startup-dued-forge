@@ -6,13 +6,22 @@ What this script does (in order):
   2. For each enabled source: runs the corresponding scanner (GitHub issues, Tavily search, or Reddit).
   3. Sends all collected data to Mistral to get: community score, red flags, market positioning, lab vs social correlation.
   4. Writes AUDIT_SOCIAL_REPORT.md from the analysis and data summary.
+
+Sources are chosen at run time via --sources (no need to edit config):
+  uv run python main.py --sources github
+  uv run python main.py --sources tavily
+  uv run python main.py --sources github,tavily
+  uv run python main.py   (uses config SOURCES if --sources not given)
 """
 
+import argparse
 import logging
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+VALID_SOURCES = ("github", "tavily", "reddit")
 
 # Logs: level + time so we can follow progress
 logging.basicConfig(
@@ -23,10 +32,10 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-def main() -> None:
+def main(sources_override: list[str] | None = None) -> None:
     from config.target_meilisearch import TARGET
 
-    sources = TARGET.get("sources", [])
+    sources = sources_override if sources_override is not None else TARGET.get("sources", [])
     results = {}
     log.info("Sources to run: %s", sources)
 
@@ -68,12 +77,36 @@ def main() -> None:
     else:
         log.info("Mistral done. Community score: %s/10. Red flags extracted: %d", analysis.get("summary_score"), len(analysis.get("red_flags") or []))
 
-    log.info("Building report (Markdown)...")
+    # Output file: GitHub only → AUDIT_GITHUB.md, Tavily only → AUDIT_TAVILY.md, both → AUDIT_SOCIAL_REPORT.md
+    if sources == ["github"]:
+        output_path = "AUDIT_GITHUB.md"
+    elif sources == ["tavily"]:
+        output_path = "AUDIT_TAVILY.md"
+    else:
+        output_path = "AUDIT_SOCIAL_REPORT.md"
+    log.info("Building report (Markdown): %s", output_path)
     from core import report_builder
-    path = report_builder.build(results, analysis)
+    path = report_builder.build(results, analysis, output_path=output_path)
     log.info("Report written to: %s", path.resolve())
     log.info("Pipeline finished.")
 
 
+def _parse_sources(s: str) -> list[str]:
+    parts = [p.strip().lower() for p in s.split(",") if p.strip()]
+    for p in parts:
+        if p not in VALID_SOURCES:
+            raise argparse.ArgumentTypeError(f"Invalid source: {p}. Choose from: {', '.join(VALID_SOURCES)}")
+    return parts
+
+
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Run audit pipeline (GitHub, Tavily, or both).")
+    parser.add_argument(
+        "--sources",
+        type=_parse_sources,
+        default=None,
+        metavar="LIST",
+        help="Comma-separated: github, tavily, reddit. Example: github,tavily. If omitted, uses config.",
+    )
+    args = parser.parse_args()
+    main(sources_override=args.sources)

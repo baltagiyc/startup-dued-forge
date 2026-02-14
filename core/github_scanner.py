@@ -30,6 +30,7 @@ def run(repo: str, keywords: dict, max_issues: int = 300) -> dict:
     issues_by_category: dict[str, list] = {k: [] for k in keywords}
     velocity_bug_hours: list[float] = []
     velocity_other_hours: list[float] = []
+    velocity_sample_details: list[dict] = []  # List of issues used for the average
 
     # Cap velocity sampling: avoid 1 API call per issue (get_comments)
     max_velocity_samples = 25
@@ -67,11 +68,19 @@ def run(repo: str, keywords: dict, max_issues: int = 300) -> dict:
                 if comments and issue.created_at:
                     first = min(comments, key=lambda c: c.created_at)
                     delta = (first.created_at - issue.created_at).total_seconds() / 3600.0
+                    delta_hours = round(delta, 1)
                     is_bug = any("bug" in (l.name or "").lower() for l in (issue.labels or []))
                     if is_bug:
                         velocity_bug_hours.append(delta)
                     else:
                         velocity_other_hours.append(delta)
+                    velocity_sample_details.append({
+                        "number": issue.number,
+                        "title": issue.title or "(no title)",
+                        "url": issue.html_url,
+                        "hours_to_first_response": delta_hours,
+                        "type": "bug" if is_bug else "other",
+                    })
                     velocity_samples_done += 1
             except Exception:
                 pass
@@ -102,4 +111,5 @@ def run(repo: str, keywords: dict, max_issues: int = 300) -> dict:
         "issues": issues_flat,
         "issues_by_category": by_cat,
         "velocity_metrics": velocity_metrics,
+        "velocity_sample_details": velocity_sample_details,
     }

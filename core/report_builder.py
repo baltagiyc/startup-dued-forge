@@ -79,7 +79,16 @@ def build(results: dict, analysis: dict, output_path: str | Path = "AUDIT_SOCIAL
         sections.append(f"- **GitHub repo:** {g.get('repo', '')}")
         sections.append(f"- **Issues matched:** {len(g.get('issues', []))}")
         sections.append(f"- **By category:** {g.get('issues_by_category', {})}")
-        sections.append(f"- **Velocity (avg first response):** bugs {g.get('velocity_metrics', {}).get('avg_first_response_hours_bugs')}h, other {g.get('velocity_metrics', {}).get('avg_first_response_hours_other')}h")
+        vm = g.get("velocity_metrics", {})
+        sections.append(f"- **Velocity (avg first response):** bugs {vm.get('avg_first_response_hours_bugs')}h (n={vm.get('sample_bugs')}), other {vm.get('avg_first_response_hours_other')}h (n={vm.get('sample_other')})")
+        details = g.get("velocity_sample_details") or []
+        if details:
+            sections.append("")
+            sections.append("#### Issues used for velocity average (time to first comment)")
+            sections.append("")
+            for d in details:
+                sections.append(f"- [#{d.get('number')}]({d.get('url', '')}) — {d.get('hours_to_first_response')}h — *{d.get('type')}* — {d.get('title', '')[:80]}")
+            sections.append("")
     if "tavily" in results and results["tavily"].get("results"):
         sections.append(f"- **Tavily (web/social) results:** {len(results['tavily']['results'])}")
     if "reddit" in results and results["reddit"].get("posts"):

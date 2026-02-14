@@ -1,16 +1,11 @@
 """
 Audit target: Meilisearch.
 Defines which sources to call (github and/or tavily) and their parameters.
-Only sources listed in SOURCES are called.
+Use --sources on the CLI to choose at run time; SOURCES here is the default when no flag is passed.
 """
 
-# Sources to use. Options: "github", "tavily", or both.
-# Tavily = multi-source (Reddit, HN, Stack Overflow, blogs) with one API key — no OAuth.
-# Examples:
-#   SOURCES = ["github"]            → GitHub only
-#   SOURCES = ["tavily"]             → Tavily only (social/web)
-#   SOURCES = ["github", "tavily"]   → both
-SOURCES = ["github", "tavily"]
+# Default sources when running without --sources
+SOURCES = ["github"]
 
 # --- GitHub ---
 GITHUB_REPO = "meilisearch/meilisearch"
@@ -40,6 +35,14 @@ TAVILY_QUERIES = [
     "Meilisearch switch migrate away",
 ]
 
+# --- Reddit (optional; stub if no PRAW credentials) ---
+REDDIT_SUBREDDITS = ["selfhosted", "rust", "Search", "LanguageTechnology"]
+REDDIT_KEYWORDS = {
+    "comparaisons": ["Meilisearch vs Typesense", "Meilisearch vs Algolia", "Meilisearch vs Elasticsearch"],
+    "feedback_production": ["Meilisearch in production", "scaling issues", "re-indexing pain"],
+    "pain_points": ["switch from Meilisearch", "migrate away", "leave Meilisearch"],
+}
+
 # Export for the orchestrator
 TARGET = {
     "sources": SOURCES,
@@ -49,5 +52,9 @@ TARGET = {
     },
     "tavily": {
         "queries": TAVILY_QUERIES,
+    },
+    "reddit": {
+        "subreddits": REDDIT_SUBREDDITS,
+        "keywords": REDDIT_KEYWORDS,
     },
 }
