@@ -5,22 +5,27 @@ Only invoked when "github" is in config TARGET["sources"].
 
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 
 from github import Github
 
 log = logging.getLogger(__name__)
 
+# Only consider issues updated in the last 12 months (avoid 2018-era noise)
+ISSUES_LOOKBACK_MONTHS = 12
+
 
 def run(repo: str, keywords: dict, max_issues: int = 300) -> dict:
     """
-    Fetches issues from the repo, filters by keywords, computes velocity metrics.
+    Fetches issues from the repo (updated in the last 12 months), filters by keywords, computes velocity metrics.
     Returns a dict with raw issues (title, body, labels, dates) and velocity stats.
     """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=ISSUES_LOOKBACK_MONTHS * 31)
     log.info("Connecting to GitHub (token=%s)", "set" if os.getenv("GITHUB_TOKEN") else "not set")
     token = os.getenv("GITHUB_TOKEN") or None
     gh = Github(token)
     repo_obj = gh.get_repo(repo)
-    log.info("Repo: %s. Fetching up to %d issues (open+closed), sorted by updated.", repo, max_issues)
+    log.info("Repo: %s. Fetching up to %d issues (open+closed), updated in the last %d months, sorted by updated.", repo, max_issues, ISSUES_LOOKBACK_MONTHS)
 
     # Flatten all keywords for matching
     all_keywords = []
@@ -42,6 +47,12 @@ def run(repo: str, keywords: dict, max_issues: int = 300) -> dict:
             break
         if issue.pull_request:
             continue
+        # Skip issues not updated in the last 12 months
+        if issue.updated_at:
+            u = issue.updated_at
+            u_utc = u if u.tzinfo else u.replace(tzinfo=timezone.utc)
+            if u_utc < cutoff:
+                continue
         count += 1
         if count % 50 == 0:
             matched = sum(len(v) for v in issues_by_category.values())
